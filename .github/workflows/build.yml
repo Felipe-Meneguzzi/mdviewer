@@ -1,0 +1,46 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instala mingw-w64 (cross-compile para Windows)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mingw-w64
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mdviewer
+          path: target/x86_64-pc-windows-gnu/release/mdviewer.exe
+
+      # Release contínua: cada push na main substitui o mdviewer.exe da release "latest".
+      - name: Publica release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --cleanup-tag --yes || true
+          gh release create latest target/x86_64-pc-windows-gnu/release/mdviewer.exe \
+            --target "$GITHUB_SHA" \
+            --title "mdviewer (${GITHUB_SHA::7})" \
+            --notes "Build automático do commit $GITHUB_SHA. Baixe o mdviewer.exe e execute para instalar." \
+            --latest
