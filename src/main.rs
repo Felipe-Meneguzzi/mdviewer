@@ -61,6 +61,8 @@ struct App {
     history: Vec<PathBuf>,
     /// Muda a cada navegação para resetar o scroll (reload mantém a posição).
     doc_id: u64,
+    /// Mostra o texto cru (estilo Bloco de Notas) em vez do Markdown renderizado.
+    raw: bool,
     watcher: Option<RecommendedWatcher>,
     changes: Option<Receiver<()>>,
 }
@@ -89,6 +91,7 @@ impl App {
             cache,
             history: Vec::new(),
             doc_id: 0,
+            raw: false,
             watcher: None,
             changes: None,
         };
@@ -184,12 +187,15 @@ impl App {
             self.open(ctx, p, true);
         }
 
-        let (esc, open, f5, back, zoom) = ctx.input(|i| {
+        let typing = ctx.egui_wants_keyboard_input();
+        let (esc, open, f5, back, raw, zoom) = ctx.input(|i| {
             (
                 i.key_pressed(Key::Escape),
                 i.modifiers.command && i.key_pressed(Key::O),
                 i.key_pressed(Key::F5),
-                (i.modifiers.alt && i.key_pressed(Key::ArrowLeft)) || i.key_pressed(Key::Backspace),
+                (i.modifiers.alt && i.key_pressed(Key::ArrowLeft))
+                    || (!typing && i.key_pressed(Key::Backspace)),
+                i.modifiers.command && i.key_pressed(Key::U),
                 i.zoom_delta(),
             )
         });
@@ -201,6 +207,9 @@ impl App {
         }
         if f5 {
             self.reload(ctx);
+        }
+        if raw {
+            self.raw = !self.raw;
         }
         if back && let Some(prev) = self.history.pop() {
             self.open(ctx, prev, false);
@@ -259,12 +268,24 @@ impl egui_software_backend::App for App {
             }
 
             egui::ScrollArea::vertical()
-                .id_salt(self.doc_id)
+                .id_salt((self.doc_id, self.raw))
                 .auto_shrink(false)
                 .show(ui, |ui| {
                     let dy = keyboard_scroll(ui);
                     if dy != 0.0 {
                         ui.scroll_with_delta(egui::vec2(0.0, dy));
+                    }
+                    if self.raw {
+                        // TextEdit sobre &str é somente leitura, mas permite selecionar e copiar.
+                        ui.add_space(12.0);
+                        ui.add(
+                            egui::TextEdit::multiline(&mut self.text.as_str())
+                                .font(egui::TextStyle::Monospace)
+                                .desired_width(f32::INFINITY)
+                                .frame(egui::Frame::NONE)
+                                .margin(egui::Margin::symmetric(12, 0)),
+                        );
+                        return;
                     }
                     let width = ui.available_width().min(MAX_CONTENT_WIDTH);
                     let pad = ((ui.available_width() - width) / 2.0).max(0.0);
@@ -284,7 +305,28 @@ impl egui_software_backend::App for App {
                 });
         });
 
+        if self.path.is_some() && self.error.is_none() {
+            self.raw_toggle(&ctx);
+        }
         self.handle_links(&ctx);
+    }
+}
+
+impl App {
+    /// Botão flutuante no canto superior direito que alterna formatado/texto cru.
+    fn raw_toggle(&mut self, ctx: &Context) {
+        egui::Area::new(egui::Id::new("raw_toggle"))
+            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-24.0, 8.0))
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                let label = if self.raw { "Formatado" } else { "Texto cru" };
+                let button = egui::Button::new(egui::RichText::new(label).size(13.0))
+                    .fill(ui.visuals().widgets.inactive.weak_bg_fill)
+                    .corner_radius(6.0);
+                if ui.add(button).on_hover_text("Ctrl+U").clicked() {
+                    self.raw = !self.raw;
+                }
+            });
     }
 }
 
@@ -292,6 +334,9 @@ impl egui_software_backend::App for App {
 fn keyboard_scroll(ui: &egui::Ui) -> f32 {
     const LINE: f32 = 60.0;
     let page = (ui.clip_rect().height() - LINE).max(LINE);
+    if ui.ctx().egui_wants_keyboard_input() {
+        return 0.0;
+    }
     ui.input(|i| {
         if i.key_pressed(Key::Home) {
             1e7
