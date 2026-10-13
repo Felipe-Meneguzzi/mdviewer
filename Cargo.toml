@@ -1,0 +1,30 @@
+[package]
+name = "mdviewer"
+version = "0.1.0"
+edition = "2024"
+description = "Visualizador de Markdown rápido e nativo para Windows"
+repository = "https://github.com/Felipe-Meneguzzi/mdviewer"
+
+[dependencies]
+egui = "0.34"
+egui-winit = { version = "0.34", default-features = false, features = ["links", "clipboard"] }
+egui_commonmark = { version = "0.23", features = ["better_syntax_highlighting", "svg"] }
+egui_extras = { version = "0.34", default-features = false, features = ["image", "file", "svg"] }
+egui_software_backend = "0.0.3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+notify = "8"
+rfd = "0.17"
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_UI_Shell"] }
+winreg = "0.56"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[build-dependencies]
+winresource = "0.1"
