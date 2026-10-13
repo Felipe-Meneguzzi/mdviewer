@@ -34,6 +34,7 @@ Blocos de código têm syntax highlight. O tema claro/escuro segue o do Windows.
 | Tecla | Ação |
 |---|---|
 | `Ctrl+O` | Abrir arquivo |
+| `Ctrl+U` / botão **Texto cru** | Alternar entre formatado e texto cru (estilo Bloco de Notas) |
 | arrastar arquivo para a janela | Abrir arquivo |
 | `F5` | Recarregar (também recarrega sozinho quando o arquivo é salvo) |
 | `Alt+←` / `Backspace` | Voltar ao arquivo anterior |
